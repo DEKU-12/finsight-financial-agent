@@ -2,7 +2,7 @@
 agent/graph.py — LangGraph Agent Definition
 
 This is the brain of FinSight. It defines a stateful LangGraph pipeline
-that connects all 6 nodes in sequence, passing a shared state dict
+that connects all 8 nodes in sequence, passing a shared state dict
 from one node to the next.
 
 Pipeline:
@@ -25,6 +25,12 @@ Pipeline:
       │
       ▼
   generate_report   ← Groq/Llama3 narrative + reportlab PDF
+      │
+      ▼
+  monitor           ← Evidently AI data quality + drift detection
+      │
+      ▼
+  track             ← MLflow: log params, metrics, artifacts
       │
       ▼
     END
@@ -58,6 +64,8 @@ from agent.nodes.fetch_news import fetch_news
 from agent.nodes.analyze import analyze
 from agent.nodes.detect_anomaly import detect_anomaly
 from agent.nodes.generate_report import generate_report
+from mlops.monitor import run_monitoring
+from mlops.tracker import log_run
 
 logger = logging.getLogger(__name__)
 
@@ -151,19 +159,29 @@ class AgentState(TypedDict, total=False):
     # Timing
     agent_latency_seconds: float
 
+    # monitor output
+    monitoring_report_path: str
+    monitoring_status: str
+    quality_issues: list
+    quality_issue_count: int
+    drift_detected: bool
+
+    # tracker output
+    mlflow_run_id: str
+
 
 # ── Node wrappers ─────────────────────────────────────────────────────────────
 # Each LangGraph node receives the full state dict and returns a dict
 # of the keys it wants to update. We wrap each function to log timing.
 
 def node_fetch_price(state: AgentState) -> dict:
-    logger.info("[Node 1/6] fetch_price → %s", state["ticker"])
+    logger.info("[Node 1/8] fetch_price → %s", state["ticker"])
     result = fetch_price_data(state["ticker"])
     return result
 
 
 def node_fetch_fundamentals(state: AgentState) -> dict:
-    logger.info("[Node 2/6] fetch_fundamentals → %s", state["ticker"])
+    logger.info("[Node 2/8] fetch_fundamentals → %s", state["ticker"])
     result = fetch_fundamentals(state["ticker"])
     # Avoid overwriting company_name if yfinance already got a better one
     if state.get("company_name") and not result.get("company_name"):
@@ -172,31 +190,43 @@ def node_fetch_fundamentals(state: AgentState) -> dict:
 
 
 def node_fetch_news(state: AgentState) -> dict:
-    logger.info("[Node 3/6] fetch_news → %s", state["ticker"])
+    logger.info("[Node 3/8] fetch_news → %s", state["ticker"])
     company = state.get("company_name") or state.get("company_name_input") or state["ticker"]
     result = fetch_news(company_name=company, ticker=state["ticker"])
     return result
 
 
 def node_analyze(state: AgentState) -> dict:
-    logger.info("[Node 4/6] analyze → %s", state["ticker"])
+    logger.info("[Node 4/8] analyze → %s", state["ticker"])
     result = analyze(dict(state))
     return result
 
 
 def node_detect_anomaly(state: AgentState) -> dict:
-    logger.info("[Node 5/6] detect_anomaly → %s", state["ticker"])
+    logger.info("[Node 5/8] detect_anomaly → %s", state["ticker"])
     result = detect_anomaly(dict(state))
     return result
 
 
 def node_generate_report(state: AgentState) -> dict:
-    logger.info("[Node 6/6] generate_report → %s", state["ticker"])
+    logger.info("[Node 6/8] generate_report → %s", state["ticker"])
     result = generate_report(dict(state))
     # Compute total agent latency
     start = state.get("run_start_time", time.time())
     result["agent_latency_seconds"] = round(time.time() - start, 2)
     return result
+
+
+def node_monitor(state: AgentState) -> dict:
+    logger.info("[Node 7/8] monitor → %s", state["ticker"])
+    result = run_monitoring(dict(state))
+    return result
+
+
+def node_track(state: AgentState) -> dict:
+    logger.info("[Node 8/8] track → %s", state["ticker"])
+    run_id = log_run(dict(state))
+    return {"mlflow_run_id": run_id or ""}
 
 
 # ── Graph construction ────────────────────────────────────────────────────────
@@ -217,6 +247,8 @@ def _build_graph() -> StateGraph:
     graph.add_node("analyze", node_analyze)
     graph.add_node("detect_anomaly", node_detect_anomaly)
     graph.add_node("generate_report", node_generate_report)
+    graph.add_node("monitor", node_monitor)
+    graph.add_node("track", node_track)
 
     # Define edges (linear pipeline)
     graph.add_edge(START, "fetch_price")
@@ -225,7 +257,9 @@ def _build_graph() -> StateGraph:
     graph.add_edge("fetch_news", "analyze")
     graph.add_edge("analyze", "detect_anomaly")
     graph.add_edge("detect_anomaly", "generate_report")
-    graph.add_edge("generate_report", END)
+    graph.add_edge("generate_report", "monitor")
+    graph.add_edge("monitor", "track")
+    graph.add_edge("track", END)
 
     return graph.compile()
 
