@@ -1,14 +1,4 @@
-"""
-config.py — Centralized configuration for FinSight.
 
-All API keys and settings are loaded from environment variables.
-Never hard-code secrets here. Use a .env file locally (see .env.example).
-
-Usage:
-    from config import config
-    print(config.GROQ_API_KEY)
-    config.validate()  # raises ValueError if any required key is missing
-"""
 
 import os
 import logging
@@ -46,8 +36,7 @@ class Config:
         "MLFLOW_EXPERIMENT_NAME", "finsight-runs"
     )
 
-    # ------------------------------------------------------------------
-    # File Paths
+
     # ------------------------------------------------------------------
     # Base directory = the folder containing this file (project root)
     BASE_DIR: Path = Path(__file__).parent
@@ -62,7 +51,7 @@ class Config:
     # ------------------------------------------------------------------
     # The Groq model used to write the final narrative report.
     # Alternatives: "mixtral-8x7b-32768", "gemma2-9b-it"
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "llama3-70b-8192")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
 
     # Maximum tokens to request from Groq for the report narrative
     LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "1024"))
