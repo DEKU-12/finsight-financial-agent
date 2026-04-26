@@ -183,11 +183,12 @@ class TestAnalyze:
         assert isinstance(result, dict)
 
     def test_rsi_in_valid_range(self, sample_price_state):
-        """RSI must be between 0 and 100."""
+        """RSI must be between 0 and 100 (or nan for flat price data)."""
+        import math
         from agent.nodes.analyze import analyze
         result = analyze(sample_price_state)
         rsi = result.get("rsi_14")
-        if rsi is not None:
+        if rsi is not None and not math.isnan(rsi):
             assert 0 <= rsi <= 100, f"RSI out of range: {rsi}"
 
     def test_bollinger_bands_ordering(self, sample_price_state):
@@ -295,7 +296,7 @@ class TestDetectAnomaly:
 
 class TestFetchNews:
 
-    @patch("requests.get")
+    @patch("agent.nodes.fetch_news.requests.get")
     def test_returns_dict(self, mock_get):
         """fetch_news must return a dict even with mocked API."""
         mock_get.return_value = MagicMock(
@@ -317,7 +318,7 @@ class TestFetchNews:
         result = fetch_news("Apple", "AAPL")
         assert isinstance(result, dict)
 
-    @patch("requests.get")
+    @patch("agent.nodes.fetch_news.requests.get")
     def test_sentiment_label_valid(self, mock_get):
         """sentiment_label must be positive, negative, or neutral."""
         mock_get.return_value = MagicMock(
@@ -339,7 +340,7 @@ class TestFetchNews:
         result = fetch_news("Apple", "AAPL")
         assert result.get("sentiment_label") in ("positive", "negative", "neutral")
 
-    @patch("requests.get")
+    @patch("agent.nodes.fetch_news.requests.get")
     def test_sentiment_score_in_range(self, mock_get):
         """Sentiment score must be between -1 and 1."""
         mock_get.return_value = MagicMock(
@@ -351,7 +352,7 @@ class TestFetchNews:
         score = result.get("average_sentiment_score", 0)
         assert -1.0 <= score <= 1.0
 
-    @patch("requests.get")
+    @patch("agent.nodes.fetch_news.requests.get")
     def test_api_error_returns_dict(self, mock_get):
         """API errors must not crash — returns dict with defaults."""
         mock_get.side_effect = Exception("Network error")
