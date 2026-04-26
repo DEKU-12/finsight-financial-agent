@@ -1,0 +1,31 @@
+# FinSight — Production Requirements (slim, for EC2 free tier)
+# Excludes heavy dev/test packages to fit in 8GB disk
+
+# --- Agent Framework ---
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-groq>=0.2.0
+langchain-core>=0.3.0
+
+# --- Financial Data ---
+yfinance>=0.2.40
+requests>=2.31.0
+
+# --- Data Processing ---
+pandas>=2.1.0
+numpy>=1.26.0
+
+# --- MLOps: Experiment Tracking ---
+mlflow>=2.13.0
+
+# --- PDF Report Generation ---
+reportlab>=4.0.0
+
+# --- Frontend ---
+streamlit>=1.35.0
+
+# --- Configuration ---
+python-dotenv>=1.0.0
+
+# --- Utilities ---
+tqdm>=4.66.0
