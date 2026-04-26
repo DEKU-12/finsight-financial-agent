@@ -70,7 +70,6 @@ Streamlit Dashboard + PDF Report + MLflow Experiment
 | **Experiment Tracking** | MLflow |
 | **Data Monitoring** | Evidently AI |
 | **Frontend** | Streamlit |
-| **Containerization** | Docker + Docker Compose |
 | **CI/CD** | GitHub Actions |
 
 ---
@@ -125,28 +124,18 @@ Tests cover: price fetching, RSI/Bollinger Band calculations, anomaly detection,
 
 ## 📊 MLflow Dashboard
 
-To view experiment history:
+Start the MLflow server alongside the app to enable the Past Runs tab:
+
 ```bash
 mlflow server --host 0.0.0.0 --port 5001
 ```
+
 Open `http://localhost:5001` → click **Model Training** view.
 
 Each run logs:
 - **Parameters:** ticker, model, data sources, RSI period
 - **Metrics:** price, RSI, volatility, sentiment score, latency, token usage
 - **Artifacts:** PDF report, Evidently HTML report, state JSON snapshot
-
----
-
-## 🐳 Docker Deployment
-
-```bash
-# Start everything with one command
-docker compose up --build
-
-# Streamlit → http://localhost:8501
-# MLflow   → http://localhost:5001
-```
 
 ---
 
@@ -173,8 +162,6 @@ finsight-financial-agent/
 │   └── ci.yml                # GitHub Actions CI
 ├── app.py                    # Streamlit frontend
 ├── config.py                 # Centralized config singleton
-├── Dockerfile                # Production Docker image
-├── docker-compose.yml        # Multi-container setup
 └── requirements.txt          # Python dependencies
 ```
 
@@ -193,22 +180,9 @@ finsight-financial-agent/
 
 ---
 
-## 🗓️ Build Timeline
-
-| Week | Focus | Status |
-|------|-------|--------|
-| 1 | Data fetchers (price, fundamentals, news) | ✅ |
-| 2 | LangGraph agent + AI report + PDF | ✅ |
-| 3 | MLflow tracking + Evidently monitoring | ✅ |
-| 4 | Streamlit frontend | ✅ |
-| 5 | Docker + deployment | ✅ |
-| 6 | Tests + CI/CD + README | ✅ |
-
----
-
 ## 👤 Author
 
-**Ayush** — MS Data Science, George Washington University  
+**Ayush** — MS Data Science, George Washington University
 Built as a portfolio project targeting Data Science / MLE roles.
 
 - GitHub: [@DEKU-12](https://github.com/DEKU-12)
