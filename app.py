@@ -135,12 +135,24 @@ with st.sidebar:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TABS
+# Detect if running on Streamlit Cloud (no MLflow server available)
 # ═══════════════════════════════════════════════════════════════════════════════
-tab_analysis, tab_runs, tab_monitoring = st.tabs([
-    "🔍 Analysis",
-    "📊 Past Runs",
-    "🩺 Monitoring",
-])
+IS_CLOUD = os.environ.get("STREAMLIT_SHARING_MODE") == "streamlit-sharing" or \
+           "streamlit.io" in os.environ.get("HOSTNAME", "") or \
+           not os.environ.get("MLFLOW_TRACKING_URI", "").startswith("http://localhost")
+
+if IS_CLOUD:
+    tab_analysis, tab_monitoring = st.tabs([
+        "🔍 Analysis",
+        "🩺 Monitoring",
+    ])
+    tab_runs = None
+else:
+    tab_analysis, tab_runs, tab_monitoring = st.tabs([
+        "🔍 Analysis",
+        "📊 Past Runs",
+        "🩺 Monitoring",
+    ])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -315,9 +327,10 @@ with tab_analysis:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 2 — PAST RUNS (MLflow)
+# TAB 2 — PAST RUNS (MLflow) — local only
 # ─────────────────────────────────────────────────────────────────────────────
-with tab_runs:
+if not IS_CLOUD and tab_runs is not None:
+  with tab_runs:
     st.markdown("## 📊 Past Experiment Runs")
     st.markdown(f"Pulling from MLflow at `{config.MLFLOW_TRACKING_URI}`")
 
