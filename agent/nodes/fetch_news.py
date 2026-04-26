@@ -106,6 +106,10 @@ def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
         logger.error("Network error fetching news for '%s': %s", company_name, exc)
         return _error_result(company_name, ticker, str(exc))
 
+    except Exception as exc:
+        logger.error("Unexpected error fetching news for '%s': %s", company_name, exc)
+        return _error_result(company_name, ticker, str(exc))
+
     # ── Parse response ────────────────────────────────────────────────────────
     if data.get("status") != "ok":
         error_msg = data.get("message", "NewsAPI returned a non-ok status.")
