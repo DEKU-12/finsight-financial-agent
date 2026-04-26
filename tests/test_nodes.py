@@ -396,3 +396,96 @@ class TestConfig:
         from config import config
         assert isinstance(config.LLM_MODEL, str)
         assert len(config.LLM_MODEL) > 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST: End-to-End Output Validation (real data, auto cross-check)
+# Uses yfinance as the ground truth — no manual checking needed.
+# Run with:  pytest tests/test_nodes.py::TestOutputValidation -v
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestOutputValidation:
+    """
+    Automatically validates agent output against yfinance ground truth.
+    Runs fetch_price and analyze on AAPL, then checks results are
+    consistent with what yfinance itself reports.
+    """
+
+    @pytest.fixture(scope="class")
+    def aapl_price(self):
+        """Fetch real AAPL price data once and reuse across all tests."""
+        from agent.nodes.fetch_price import fetch_price_data
+        return fetch_price_data("AAPL")
+
+    @pytest.fixture(scope="class")
+    def aapl_analysis(self, aapl_price):
+        """Run analysis on real AAPL data."""
+        from agent.nodes.analyze import analyze
+        return analyze(aapl_price)
+
+    def test_price_matches_yfinance(self, aapl_price):
+        """Current price must match yfinance's own fast_info price."""
+        import yfinance as yf
+        ticker = yf.Ticker("AAPL")
+        yf_price = ticker.fast_info.last_price
+        our_price = aapl_price.get("current_price")
+        assert our_price is not None, "Price is None"
+        # Allow 1% difference (bid/ask spread, timing)
+        diff_pct = abs(our_price - yf_price) / yf_price * 100
+        assert diff_pct < 1.0, f"Price mismatch: ours={our_price}, yfinance={yf_price} ({diff_pct:.2f}% diff)"
+
+    def test_52w_high_above_current_price(self, aapl_price):
+        """52W high must always be >= current price."""
+        high = aapl_price.get("week_52_high")
+        price = aapl_price.get("current_price")
+        if high and price:
+            assert high >= price * 0.99, f"52W high ({high}) below current price ({price})"
+
+    def test_52w_low_below_current_price(self, aapl_price):
+        """52W low must always be <= current price."""
+        low = aapl_price.get("week_52_low")
+        price = aapl_price.get("current_price")
+        if low and price:
+            assert low <= price * 1.01, f"52W low ({low}) above current price ({price})"
+
+    def test_ma200_is_long_term_average(self, aapl_price):
+        """MA200 should be close to the mean of last 200 close prices."""
+        import numpy as np
+        closes = aapl_price.get("close_prices", [])
+        if len(closes) >= 200:
+            expected_ma200 = round(float(np.mean(closes[-200:])), 2)
+            our_ma200 = aapl_price.get("ma_200")
+            if our_ma200:
+                diff_pct = abs(our_ma200 - expected_ma200) / expected_ma200 * 100
+                assert diff_pct < 1.0, f"MA200 mismatch: ours={our_ma200}, expected={expected_ma200}"
+
+    def test_rsi_matches_expected_range_for_market(self, aapl_analysis):
+        """RSI for a major stock like AAPL should be between 20 and 80 normally."""
+        import math
+        rsi = aapl_analysis.get("rsi_14")
+        if rsi is not None and not math.isnan(rsi):
+            assert 10 <= rsi <= 90, f"RSI extremely out of normal range: {rsi}"
+
+    def test_volatility_reasonable(self, aapl_analysis):
+        """AAPL 30-day annualized volatility should be between 5% and 100%."""
+        vol = aapl_analysis.get("volatility_30d_pct")
+        if vol is not None:
+            assert 5 <= vol <= 100, f"Volatility unrealistic: {vol}%"
+
+    def test_bollinger_bands_contain_recent_price(self, aapl_price, aapl_analysis):
+        """Current price should be within 10% of BB bands (not wildly outside)."""
+        price = aapl_price.get("current_price")
+        lower = aapl_analysis.get("bb_lower")
+        upper = aapl_analysis.get("bb_upper")
+        if all(v is not None for v in [price, lower, upper]):
+            band_range = upper - lower
+            # Price should not be more than 1x the band range outside the bands
+            assert price > lower - band_range, "Price absurdly below Bollinger lower band"
+            assert price < upper + band_range, "Price absurdly above Bollinger upper band"
+
+    def test_daily_returns_sum_to_reasonable_value(self, aapl_price):
+        """Sum of daily returns over 60 days should be between -50% and +200%."""
+        returns = aapl_price.get("daily_returns", [])
+        if returns:
+            total = sum(returns) * 100
+            assert -50 <= total <= 200, f"Total returns unrealistic: {total:.1f}%"

@@ -22,7 +22,7 @@ Return contract:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import requests
@@ -81,7 +81,7 @@ def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
     else:
         query = f'"{company_name}"'
 
-    from_date = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+    from_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
     params = {
         "q": query,
