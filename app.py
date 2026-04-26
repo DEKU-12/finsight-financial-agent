@@ -135,24 +135,35 @@ with st.sidebar:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TABS
-# Detect if running on Streamlit Cloud (no MLflow server available)
+# Check if MLflow server is actually reachable before showing Past Runs tab
 # ═══════════════════════════════════════════════════════════════════════════════
-IS_CLOUD = os.environ.get("STREAMLIT_SHARING_MODE") == "streamlit-sharing" or \
-           "streamlit.io" in os.environ.get("HOSTNAME", "") or \
-           not os.environ.get("MLFLOW_TRACKING_URI", "").startswith("http://localhost")
+def _mlflow_reachable() -> bool:
+    """Return True if MLflow server responds within 2 seconds."""
+    import socket
+    try:
+        uri = config.MLFLOW_TRACKING_URI  # e.g. http://localhost:5001
+        host = uri.split("//")[-1].split(":")[0]
+        port = int(uri.split(":")[-1])
+        sock = socket.create_connection((host, port), timeout=2)
+        sock.close()
+        return True
+    except Exception:
+        return False
 
-if IS_CLOUD:
-    tab_analysis, tab_monitoring = st.tabs([
-        "🔍 Analysis",
-        "🩺 Monitoring",
-    ])
-    tab_runs = None
-else:
+MLFLOW_AVAILABLE = _mlflow_reachable()
+
+if MLFLOW_AVAILABLE:
     tab_analysis, tab_runs, tab_monitoring = st.tabs([
         "🔍 Analysis",
         "📊 Past Runs",
         "🩺 Monitoring",
     ])
+else:
+    tab_analysis, tab_monitoring = st.tabs([
+        "🔍 Analysis",
+        "🩺 Monitoring",
+    ])
+    tab_runs = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -329,7 +340,7 @@ with tab_analysis:
 # ─────────────────────────────────────────────────────────────────────────────
 # TAB 2 — PAST RUNS (MLflow) — local only
 # ─────────────────────────────────────────────────────────────────────────────
-if not IS_CLOUD and tab_runs is not None:
+if MLFLOW_AVAILABLE and tab_runs is not None:
   with tab_runs:
     st.markdown("## 📊 Past Experiment Runs")
     st.markdown(f"Pulling from MLflow at `{config.MLFLOW_TRACKING_URI}`")
