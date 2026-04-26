@@ -118,7 +118,22 @@ Open `http://localhost:8501` in your browser, enter a ticker, and click **Run An
 pytest tests/test_nodes.py -v
 ```
 
-Tests cover: price fetching, RSI/Bollinger Band calculations, anomaly detection, news sentiment, and config validation. News API tests use mocks — no real API key needed.
+**37 tests across 5 test classes:**
+
+| Test Class | What It Checks |
+|-----------|----------------|
+| `TestFetchPrice` | yfinance data fetching, price validity, MA30/MA200 |
+| `TestAnalyze` | RSI range (0–100), Bollinger Band ordering, volatility, signals |
+| `TestDetectAnomaly` | Flag count accuracy, risk level values, anomaly triggers |
+| `TestFetchNews` | Sentiment label/score validity, API error handling (mocked) |
+| `TestConfig` | Config imports, all attributes present, valid defaults |
+| `TestOutputValidation` | **Auto cross-checks agent output against yfinance ground truth** |
+
+The `TestOutputValidation` class automatically verifies correctness without manual work:
+- Price accuracy within 1% of yfinance's live price
+- 52W high always ≥ current price, 52W low always ≤ current price
+- MA200 recalculated from raw data and compared
+- RSI, volatility, and Bollinger Bands within realistic ranges
 
 ---
 
