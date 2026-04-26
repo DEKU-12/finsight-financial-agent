@@ -219,14 +219,23 @@ def node_generate_report(state: AgentState) -> dict:
 
 def node_monitor(state: AgentState) -> dict:
     logger.info("[Node 7/8] monitor → %s", state["ticker"])
-    result = run_monitoring(dict(state))
-    return result
+    try:
+        result = run_monitoring(dict(state))
+        return result
+    except Exception as exc:
+        logger.warning("Monitoring skipped: %s", exc)
+        return {"monitoring_status": "skipped", "quality_issues": [],
+                "quality_issue_count": 0, "drift_detected": False}
 
 
 def node_track(state: AgentState) -> dict:
     logger.info("[Node 8/8] track → %s", state["ticker"])
-    run_id = log_run(dict(state))
-    return {"mlflow_run_id": run_id or ""}
+    try:
+        run_id = log_run(dict(state))
+        return {"mlflow_run_id": run_id or ""}
+    except Exception as exc:
+        logger.warning("MLflow tracking skipped (server unavailable): %s", exc)
+        return {"mlflow_run_id": ""}
 
 
 # ── Graph construction ────────────────────────────────────────────────────────
