@@ -112,6 +112,27 @@ Open `http://localhost:8501` in your browser, enter a ticker, and click **Run An
 
 ---
 
+## ✅ Indicator Accuracy
+
+Technical indicators were validated against the [`ta`](https://technical-analysis-library-in-python.readthedocs.io/) library (industry-standard ground truth) across **20 stocks** (AAPL, MSFT, NVDA, GOOGL, META, TSLA, AMZN, JPM, JNJ, SPY, QQQ, BAC, PFE, COIN, GS, NFLX, AMD, INTC, DIS, UNH):
+
+| Indicator | Avg Error | Accuracy |
+|-----------|-----------|---------|
+| RSI(14) | 0.0052% | **99.99%** |
+| Bollinger Upper Band | 0.2457% | **99.75%** |
+| Bollinger Lower Band | 0.3602% | **99.64%** |
+| MA30 | 0.0022% | **100.00%** |
+| MA200 | 0.0024% | **100.00%** |
+| **Overall** | | **99.88%** |
+
+Run the validation yourself:
+```bash
+pip install ta
+python scripts/measure_accuracy.py
+```
+
+---
+
 ## 🧪 Running Tests
 
 ```bash

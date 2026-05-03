@@ -1,0 +1,9 @@
+FinSight Accuracy Report — 2026-05-03
+Tickers tested: 20
+Overall accuracy: 99.88%
+
+RSI(14) accuracy:         99.99%
+Bollinger Upper accuracy: 99.75%
+Bollinger Lower accuracy: 99.64%
+MA30 accuracy:            100.00%
+MA200 accuracy:           100.00%
