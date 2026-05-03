@@ -204,10 +204,19 @@ def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
     logger.info("Fetching news for company='%s' ticker=%s", company_name, ticker)
 
     # ── Build search query ────────────────────────────────────────────────────
+    # Use AND with financial terms to avoid matching unrelated uses of the
+    # company name or ticker (e.g. "Apple" matching food articles, "stock"
+    # matching "stock car" racing results).
     if ticker:
-        query = f'"{company_name}" OR "{ticker}" stock'
+        query = (
+            f'("{company_name}" OR "{ticker}")'
+            f' AND (stock OR shares OR earnings OR investor OR market)'
+        )
     else:
-        query = f'"{company_name}"'
+        query = (
+            f'"{company_name}"'
+            f' AND (stock OR shares OR earnings OR investor OR market)'
+        )
 
     from_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
