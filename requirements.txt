@@ -34,7 +34,12 @@ streamlit>=1.35.0
 python-dotenv>=1.0.0
 
 # --- NLP / Sentiment ---
+# FinBERT (primary) — requires torch; install separately for local dev:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install transformers>=4.40.0
+# VADER (automatic fallback when torch/transformers not available)
 vaderSentiment>=3.3.2
+transformers>=4.40.0
 
 # --- Utilities ---
 tqdm>=4.66.0

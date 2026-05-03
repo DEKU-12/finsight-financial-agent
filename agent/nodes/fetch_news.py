@@ -3,18 +3,27 @@ agent/nodes/fetch_news.py — News Headlines Fetcher with Sentiment
 
 Uses the NewsAPI /v2/everything endpoint (free tier: 100 requests/day)
 to fetch recent news about a company, then classifies each headline's
-sentiment using VADER (Valence Aware Dictionary and sEntiment Reasoner).
+sentiment using FinBERT — a BERT model fine-tuned on 10,000+ financial
+sentences (Malo et al., 2014 / ProsusAI/finbert on HuggingFace).
 
-Why VADER instead of an LLM here?
+Classifier selection (automatic):
+  1. FinBERT  — used when `transformers` + `torch` are available.
+               Best accuracy for financial text. Understands domain-
+               specific language and financial context that general-
+               purpose tools miss.
+  2. VADER    — fallback when FinBERT cannot load (e.g. Streamlit Cloud,
+               no torch, insufficient memory). Still far better than
+               keyword matching.
+
+Why not an LLM here?
   - The LLM is reserved for the final report narrative (generate_report.py).
-  - VADER is deterministic → MLflow experiments are reproducible.
-  - It's fast, free, and requires no API quota.
-  - It's a peer-reviewed NLP tool (Hutto & Gilbert, 2014) validated on
-    short social/news text — exactly our use case.
-  - Validated against FinBERT (financial BERT) and showed strong agreement.
+  - FinBERT/VADER are deterministic → MLflow experiments are reproducible.
+  - They're fast and use zero API quota.
 
-Upgrade path: swap classify_sentiment() for a FinBERT pipeline if higher
-accuracy is needed in production (see ProsusAI/finbert on HuggingFace).
+Benchmark history (89 financial headlines, 20 stocks):
+  Keyword matching → 58% agreement vs VADER
+  VADER            → 39% agreement vs FinBERT  (positivity bias on fin. text)
+  FinBERT          → production classifier (domain-tuned gold standard)
 
 Sentiment output:
   - Each article gets: "positive", "negative", or "neutral"
@@ -32,7 +41,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import requests
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from config import config
 
@@ -47,9 +55,118 @@ _SENTIMENT_SCORE = {"positive": 1.0, "neutral": 0.0, "negative": -1.0}
 _POSITIVE_THRESHOLD = 0.2
 _NEGATIVE_THRESHOLD = -0.2
 
-# VADER analyser — instantiated once at module load (thread-safe)
-_vader = SentimentIntensityAnalyzer()
 
+# ── Classifier setup (lazy-loaded, auto-selects FinBERT or VADER) ─────────────
+
+_finbert = None          # HuggingFace pipeline, loaded on first call
+_vader   = None          # VADER analyser, loaded as fallback
+_classifier_name = None  # "finbert" or "vader" — set once on first call
+
+
+def _load_classifier():
+    """
+    Load FinBERT if possible, otherwise fall back to VADER.
+    Called once on the first classify_sentiment() call, then cached.
+    """
+    global _finbert, _vader, _classifier_name
+
+    # ── Try FinBERT ────────────────────────────────────────────────────────────
+    try:
+        from transformers import pipeline as hf_pipeline
+        logger.info("Loading FinBERT (ProsusAI/finbert)...")
+        _finbert = hf_pipeline(
+            "text-classification",
+            model="ProsusAI/finbert",
+            tokenizer="ProsusAI/finbert",
+            truncation=True,
+            max_length=512,
+        )
+        _classifier_name = "finbert"
+        logger.info("FinBERT loaded successfully — using as sentiment classifier.")
+        return
+
+    except Exception as exc:
+        logger.warning(
+            "FinBERT unavailable (%s) — falling back to VADER.", exc
+        )
+
+    # ── Fall back to VADER ─────────────────────────────────────────────────────
+    try:
+        from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+        _vader = SentimentIntensityAnalyzer()
+        _classifier_name = "vader"
+        logger.info("VADER loaded as fallback sentiment classifier.")
+
+    except Exception as exc:
+        logger.error(
+            "Neither FinBERT nor VADER could be loaded: %s. "
+            "Sentiment will default to 'neutral'.", exc
+        )
+        _classifier_name = "none"
+
+
+def classify_sentiment(text: str) -> tuple[str, float]:
+    """
+    Classify text sentiment using FinBERT (primary) or VADER (fallback).
+
+    FinBERT (ProsusAI/finbert):
+      - Fine-tuned on 10,000+ financial news sentences
+      - Understands financial context: "price target raised despite miss"
+        is correctly read as mixed/neutral, not positive
+      - Returns "positive", "negative", or "neutral" directly
+
+    VADER fallback (Hutto & Gilbert, 2014):
+      - Peer-reviewed general-purpose sentiment tool
+      - Fast and deterministic; good on general news text
+      - Thresholds: compound >= 0.05 → positive, <= -0.05 → negative
+
+    Args:
+        text: Any string — typically article title + description concatenated.
+
+    Returns:
+        Tuple of (label, score) where:
+          label  — "positive" | "negative" | "neutral"
+          score  — FinBERT confidence (0–1) or VADER compound (-1 to +1)
+    """
+    global _finbert, _vader, _classifier_name
+
+    # Load on first call
+    if _classifier_name is None:
+        _load_classifier()
+
+    # ── FinBERT ────────────────────────────────────────────────────────────────
+    if _classifier_name == "finbert" and _finbert is not None:
+        try:
+            result = _finbert(text[:512])[0]
+            label  = result["label"].lower()   # already "positive"/"negative"/"neutral"
+            score  = round(float(result["score"]), 4)
+            return label, score
+        except Exception as exc:
+            logger.warning("FinBERT inference failed (%s), using VADER fallback.", exc)
+
+    # ── VADER fallback ─────────────────────────────────────────────────────────
+    if _vader is not None:
+        compound = _vader.polarity_scores(text)["compound"]
+        if compound >= 0.05:
+            label = "positive"
+        elif compound <= -0.05:
+            label = "negative"
+        else:
+            label = "neutral"
+        return label, round(compound, 4)
+
+    # ── Last resort: neutral ───────────────────────────────────────────────────
+    return "neutral", 0.0
+
+
+def get_classifier_name() -> str:
+    """Return which classifier is active ('finbert', 'vader', or 'none')."""
+    if _classifier_name is None:
+        _load_classifier()
+    return _classifier_name or "none"
+
+
+# ── Main fetcher ──────────────────────────────────────────────────────────────
 
 def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
     """
@@ -64,29 +181,29 @@ def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
 
     Returns:
         dict with:
-            company             (str)   The company_name passed in
-            ticker              (str|None)
-            articles            (list)  Up to 5 processed article dicts — see below
-            article_count       (int)   Number of articles returned (0–5)
-            average_sentiment_score (float)  Mean of article sentiment scores (-1 to 1)
-            sentiment_label     (str)   "positive" | "neutral" | "negative"
-            query_used          (str)   The exact search query sent to NewsAPI
-            status              (str)   "success" | "error"
+            company                 (str)   The company_name passed in
+            ticker                  (str|None)
+            articles                (list)  Up to 5 processed article dicts
+            article_count           (int)   Number of articles returned (0–5)
+            average_sentiment_score (float) Mean of article sentiment scores (-1 to 1)
+            sentiment_label         (str)   "positive" | "neutral" | "negative"
+            sentiment_classifier    (str)   "finbert" or "vader" (which was used)
+            query_used              (str)   The exact search query sent to NewsAPI
+            status                  (str)   "success" | "error"
 
         Each article dict contains:
-            title           (str)
-            description     (str|None)
-            source          (str)   Publication name
-            published_at    (str)   ISO 8601 datetime string
-            url             (str)
-            sentiment       (str)   "positive" | "neutral" | "negative"
-            sentiment_score (float) 1.0 | 0.0 | -1.0
-            vader_compound  (float) Raw VADER compound score (-1.0 to 1.0)
+            title               (str)
+            description         (str|None)
+            source              (str)   Publication name
+            published_at        (str)   ISO 8601 datetime string
+            url                 (str)
+            sentiment           (str)   "positive" | "neutral" | "negative"
+            sentiment_score     (float) 1.0 | 0.0 | -1.0
+            sentiment_confidence(float) FinBERT confidence or VADER compound
     """
     logger.info("Fetching news for company='%s' ticker=%s", company_name, ticker)
 
     # ── Build search query ────────────────────────────────────────────────────
-    # Example: "Apple OR AAPL stock" — catches both editorial and financial news
     if ticker:
         query = f'"{company_name}" OR "{ticker}" stock'
     else:
@@ -95,12 +212,12 @@ def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
     from_date = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
     params = {
-        "q": query,
-        "from": from_date,
-        "sortBy": "publishedAt",
+        "q":        query,
+        "from":     from_date,
+        "sortBy":   "publishedAt",
         "language": "en",
         "pageSize": 5,
-        "apiKey": config.NEWS_API_KEY,
+        "apiKey":   config.NEWS_API_KEY,
     }
 
     # ── Make request ──────────────────────────────────────────────────────────
@@ -137,31 +254,27 @@ def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
     # ── Process articles ──────────────────────────────────────────────────────
     processed: list[dict] = []
     for article in raw_articles[:5]:
-        title: str = article.get("title") or ""
+        title:       str = article.get("title") or ""
         description: str = article.get("description") or ""
-        full_text: str = f"{title} {description}"
+        full_text:   str = f"{title} {description}"
 
-        sentiment_label, vader_compound = classify_sentiment(full_text)
+        sentiment_label, sentiment_confidence = classify_sentiment(full_text)
         sentiment_score: float = _SENTIMENT_SCORE[sentiment_label]
 
-        processed.append(
-            {
-                "title": title,
-                "description": description,
-                "source": (article.get("source") or {}).get("name", "Unknown"),
-                "published_at": article.get("publishedAt", ""),
-                "url": article.get("url", ""),
-                "sentiment": sentiment_label,
-                "sentiment_score": sentiment_score,
-                "vader_compound": round(vader_compound, 4),
-            }
-        )
+        processed.append({
+            "title":                title,
+            "description":          description,
+            "source":               (article.get("source") or {}).get("name", "Unknown"),
+            "published_at":         article.get("publishedAt", ""),
+            "url":                  article.get("url", ""),
+            "sentiment":            sentiment_label,
+            "sentiment_score":      sentiment_score,
+            "sentiment_confidence": sentiment_confidence,
+        })
 
     # ── Aggregate sentiment ───────────────────────────────────────────────────
     if processed:
-        avg_score: float = sum(a["sentiment_score"] for a in processed) / len(
-            processed
-        )
+        avg_score: float = sum(a["sentiment_score"] for a in processed) / len(processed)
     else:
         avg_score = 0.0
 
@@ -174,78 +287,40 @@ def fetch_news(company_name: str, ticker: Optional[str] = None) -> dict:
     else:
         agg_label = "neutral"
 
+    classifier_used = get_classifier_name()
+
     logger.info(
-        "News fetched for '%s': %d articles, avg_sentiment=%.2f (%s)",
-        company_name,
-        len(processed),
-        avg_score,
-        agg_label,
+        "News fetched for '%s': %d articles, avg_sentiment=%.2f (%s) via %s",
+        company_name, len(processed), avg_score, agg_label, classifier_used,
     )
 
     return {
-        "company": company_name,
-        "ticker": ticker,
-        "articles": processed,
-        "article_count": len(processed),
+        "company":                company_name,
+        "ticker":                 ticker,
+        "articles":               processed,
+        "article_count":          len(processed),
         "average_sentiment_score": avg_score,
-        "sentiment_label": agg_label,
-        "query_used": query,
-        "status": "success",
+        "sentiment_label":        agg_label,
+        "sentiment_classifier":   classifier_used,
+        "query_used":             query,
+        "status":                 "success",
     }
-
-
-def classify_sentiment(text: str) -> tuple[str, float]:
-    """
-    Classify text sentiment using VADER (Valence Aware Dictionary and
-    sEntiment Reasoner — Hutto & Gilbert, 2014).
-
-    VADER is a lexicon and rule-based tool specifically designed for
-    social media and news text. It handles:
-      - Financial jargon ("bullish", "bearish", "surge", "plunge")
-      - Negations ("not strong", "no growth")
-      - Punctuation and capitalisation emphasis
-      - Conjunctions that flip sentiment ("strong earnings but outlook weak")
-
-    Thresholds follow VADER's published guidelines:
-      compound >= +0.05 → positive
-      compound <= -0.05 → negative
-      otherwise         → neutral
-
-    Args:
-        text: Any string — typically article title + description concatenated.
-
-    Returns:
-        Tuple of (label, compound_score) where label is one of
-        "positive" | "negative" | "neutral" and compound_score is
-        VADER's continuous score in [-1.0, +1.0].
-    """
-    compound = _vader.polarity_scores(text)["compound"]
-
-    if compound >= 0.05:
-        label = "positive"
-    elif compound <= -0.05:
-        label = "negative"
-    else:
-        label = "neutral"
-
-    return label, compound
 
 
 # ── Private helpers ───────────────────────────────────────────────────────────
 
-def _error_result(
-    company_name: str, ticker: Optional[str], error: str
-) -> dict:
+def _error_result(company_name: str, ticker: Optional[str], error: str) -> dict:
     """Return a standardised error result dict."""
     return {
-        "company": company_name,
-        "ticker": ticker,
-        "articles": [],
-        "article_count": 0,
+        "company":                company_name,
+        "ticker":                 ticker,
+        "articles":               [],
+        "article_count":          0,
         "average_sentiment_score": 0.0,
-        "sentiment_label": "neutral",
-        "status": "error",
-        "error": error,
+        "sentiment_label":        "neutral",
+        "sentiment_classifier":   "none",
+        "status":                 "error",
+        "error":                  error,
     }
 
 
@@ -255,12 +330,11 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
 
-    # Make sure your .env file has NEWS_API_KEY set before running this.
     result = fetch_news("Apple", ticker="AAPL")
 
-    # Pretty-print without being noisy
     display = dict(result)
     for article in display.get("articles", []):
         article["description"] = (article["description"] or "")[:80]
 
     print(json.dumps(display, indent=2))
+    print(f"\nClassifier used: {result.get('sentiment_classifier')}")
