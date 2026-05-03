@@ -33,6 +33,9 @@ streamlit>=1.35.0
 # --- Configuration ---
 python-dotenv>=1.0.0
 
+# --- NLP / Sentiment ---
+vaderSentiment>=3.3.2
+
 # --- Utilities ---
 tqdm>=4.66.0
 

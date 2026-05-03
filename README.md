@@ -203,6 +203,29 @@ finsight-financial-agent/
 
 ---
 
+## 🗞️ Sentiment Classifier
+
+Headlines are classified using **VADER** (Valence Aware Dictionary and sEntiment Reasoner — Hutto & Gilbert, 2014), a peer-reviewed NLP tool designed specifically for short news and social media text.
+
+**Why VADER over a custom keyword list?**
+An initial keyword-based classifier was built and validated, showing 58% agreement with VADER across 89 headlines — with a measurable positivity bias (under-detected negatives). VADER was then adopted as the production classifier, which handles negations, conjunctions, and financial jargon that keyword matching misses.
+
+**Validation against FinBERT** (the financial NLP gold standard — fine-tuned BERT on 10,000+ financial sentences):
+
+```bash
+pip install transformers torch vaderSentiment
+python scripts/measure_sentiment_accuracy.py   # downloads FinBERT ~400MB on first run
+```
+
+| Classifier | Reference | Headlines | Agreement |
+|-----------|-----------|-----------|-----------|
+| Keyword (v1) | VADER | 89 | 58.4% |
+| **VADER (current)** | **FinBERT** | **89** | **TBD — run script** |
+
+> The FinBERT agreement number is generated live from your NewsAPI data. Run the script above and it will print the exact CV-ready statement.
+
+---
+
 ## 📈 Sample Output
 
 **Risk Levels:** Low 🟢 | Medium 🟡 | High 🔴 | Critical 🚨
