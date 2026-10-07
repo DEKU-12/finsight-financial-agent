@@ -19,6 +19,7 @@ Always check result["status"] before using the data downstream.
 """
 
 import logging
+from datetime import date, timedelta
 from typing import Optional
 
 import numpy as np
@@ -33,12 +34,12 @@ logger = logging.getLogger(__name__)
 
 def fetch_price_data(ticker: str) -> dict:
     """
-    Fetch price data from yfinance, falling back to Alpha Vantage when Yahoo
+    Fetch price data from yfinance, falling back to Polygon when Yahoo
     returns nothing (Yahoo often blocks cloud hosts like Streamlit Cloud/Render).
     """
     result = _fetch_yfinance(ticker)
     if result["status"] != "success":
-        fallback = _fetch_alpha_vantage(result["ticker"])
+        fallback = _fetch_polygon(result["ticker"])
         if fallback:
             return fallback
     return result
@@ -184,64 +185,80 @@ def _fetch_yfinance(ticker: str) -> dict:
         }
 
 
-# ── Alpha Vantage fallback ─────────────────────────────────────────────────────
+# ── Polygon fallback ──────────────────────────────────────────────────────────
 
-def _fetch_alpha_vantage(ticker: str) -> Optional[dict]:
+POLYGON_BASE_URL = "https://api.polygon.io"
+
+
+def _fetch_polygon(ticker: str) -> Optional[dict]:
     """
-    Daily prices from Alpha Vantage's free tier (last 100 trading days, one call).
-    Enough for RSI, Bollinger Bands, momentum, volatility and MA30; MA200 and the
-    52-week range need more history and stay None. Returns None on failure.
+    One year of daily prices plus company details from Polygon (Massive).
+    Two calls; the free tier allows 5 per minute. Returns None on failure.
     """
+    if not config.POLYGON_API_KEY:
+        logger.warning("Polygon fallback skipped for %s: POLYGON_API_KEY not set", ticker)
+        return None
+
+    today = date.today()
     try:
-        data = requests.get(
-            "https://www.alphavantage.co/query",
-            params={
-                "function": "TIME_SERIES_DAILY",
-                "symbol": ticker,
-                "outputsize": "compact",
-                "apikey": config.ALPHA_VANTAGE_API_KEY,
-            },
+        aggs = requests.get(
+            f"{POLYGON_BASE_URL}/v2/aggs/ticker/{ticker}/range/1/day/"
+            f"{today - timedelta(days=365)}/{today}",
+            params={"adjusted": "true", "sort": "asc", "limit": 50000,
+                    "apiKey": config.POLYGON_API_KEY},
             timeout=15,
         ).json()
     except Exception as exc:
-        logger.warning("Alpha Vantage price fallback failed for %s: %s", ticker, exc)
+        logger.warning("Polygon price request failed for %s: %s", ticker, exc)
         return None
 
-    series = data.get("Time Series (Daily)")
-    if not series:
+    bars = aggs.get("results")
+    if not bars:
         logger.warning(
-            "Alpha Vantage returned no prices for %s: %s",
-            ticker, data.get("Information") or data.get("Note") or data.get("Error Message"),
+            "Polygon returned no prices for %s: %s",
+            ticker, aggs.get("error") or aggs.get("message") or aggs.get("status"),
         )
         return None
 
     hist = pd.DataFrame(
         {
-            "Close": [float(v["4. close"]) for v in series.values()],
-            "Volume": [int(v["5. volume"]) for v in series.values()],
+            "Close": [b["c"] for b in bars],
+            "High": [b["h"] for b in bars],
+            "Low": [b["l"] for b in bars],
+            "Volume": [b["v"] for b in bars],
         },
-        index=pd.to_datetime(list(series.keys())),
-    ).sort_index()
+        index=pd.to_datetime([b["t"] for b in bars], unit="ms"),
+    )
 
-    ma_30 = _last_valid(hist["Close"].rolling(window=30).mean())
+    # Company name and market cap are nice-to-have; prices are enough to go on
+    details: dict = {}
+    try:
+        details = requests.get(
+            f"{POLYGON_BASE_URL}/v3/reference/tickers/{ticker}",
+            params={"apiKey": config.POLYGON_API_KEY},
+            timeout=15,
+        ).json().get("results") or {}
+    except Exception as exc:
+        logger.warning("Polygon details request failed for %s: %s", ticker, exc)
+
     returns = hist["Close"].pct_change().dropna()
     closes = hist["Close"].iloc[1:]
 
-    logger.info("Using Alpha Vantage prices for %s (%d days)", ticker, len(hist))
+    logger.info("Using Polygon prices for %s (%d days)", ticker, len(hist))
     return {
         "ticker": ticker,
-        "company_name": ticker,
+        "company_name": details.get("name") or ticker,
         "sector": "Unknown",
-        "industry": "Unknown",
-        "currency": "USD",
-        "market_cap": None,
+        "industry": details.get("sic_description", "Unknown"),
+        "currency": (details.get("currency_name") or "usd").upper(),
+        "market_cap": details.get("market_cap"),
         "current_price": _round(hist["Close"].iloc[-1]),
-        "week_52_high": None,
-        "week_52_low": None,
+        "week_52_high": _round(hist["High"].max()),
+        "week_52_low": _round(hist["Low"].min()),
         "avg_volume": int(hist["Volume"].tail(63).mean()),
         "current_volume": int(hist["Volume"].iloc[-1]),
-        "ma_30": _round(ma_30),
-        "ma_200": None,
+        "ma_30": _round(_last_valid(hist["Close"].rolling(window=30).mean())),
+        "ma_200": _round(_last_valid(hist["Close"].rolling(window=200).mean())),
         "daily_returns": [round(r, 6) for r in returns.tolist()],
         "close_prices": [round(p, 4) for p in closes.tolist()],
         "dates": [str(d.date()) for d in closes.index],

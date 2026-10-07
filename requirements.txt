@@ -5,7 +5,6 @@
 
 # --- Agent Framework ---
 langgraph>=0.2.0
-langchain>=0.3.0
 anthropic>=0.125.0
 langchain-core>=0.3.0
 
@@ -16,13 +15,9 @@ requests>=2.31.0
 # --- Data Processing & Analysis ---
 pandas>=2.1.0
 numpy>=1.26.0
-scikit-learn>=1.4.0
 
 # --- MLOps: Experiment Tracking ---
 mlflow>=2.13.0
-
-# --- MLOps: Monitoring & Drift Detection ---
-evidently>=0.4.30
 
 # --- PDF Report Generation ---
 reportlab>=4.0.0
@@ -40,9 +35,6 @@ python-dotenv>=1.0.0
 # VADER (automatic fallback when torch/transformers not available)
 vaderSentiment>=3.3.2
 transformers>=4.40.0
-
-# --- Utilities ---
-tqdm>=4.66.0
 
 # --- Testing ---
 pytest>=8.0.0

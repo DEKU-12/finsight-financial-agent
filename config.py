@@ -23,7 +23,8 @@ class Config:
     # API Keys
     # ------------------------------------------------------------------
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    ALPHA_VANTAGE_API_KEY: str = os.getenv("ALPHA_VANTAGE_API_KEY", "")
+    # Optional locally; needed on cloud hosts where Yahoo Finance is blocked
+    POLYGON_API_KEY: str = os.getenv("POLYGON_API_KEY", "")
     NEWS_API_KEY: str = os.getenv("NEWS_API_KEY", "")
 
     # ------------------------------------------------------------------
@@ -62,14 +63,6 @@ class Config:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
     # ------------------------------------------------------------------
-    # Alpha Vantage rate-limit guard
-    # ------------------------------------------------------------------
-    # Free tier: 25 calls/day. Set to True during development to read
-    # from a local cache file instead of making live API calls.
-    AV_USE_CACHE: bool = os.getenv("AV_USE_CACHE", "false").lower() == "true"
-    AV_CACHE_PATH: Path = BASE_DIR / "data" / "av_cache.json"
-
-    # ------------------------------------------------------------------
     # Analysis Parameters
     # ------------------------------------------------------------------
     # RSI lookback period in days
@@ -105,8 +98,6 @@ class Config:
 
         if not (anthropic_api_key or self.ANTHROPIC_API_KEY):
             missing.append("ANTHROPIC_API_KEY (enter your own key in the sidebar)")
-        if not self.ALPHA_VANTAGE_API_KEY:
-            missing.append("ALPHA_VANTAGE_API_KEY")
         if not self.NEWS_API_KEY:
             missing.append("NEWS_API_KEY")
 

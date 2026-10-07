@@ -12,7 +12,7 @@ Pipeline:
   fetch_price       ← yfinance: price, MA30, MA200, daily returns
       │
       ▼
-  fetch_fundamentals ← Alpha Vantage: P/E, EPS, margins, debt-to-equity
+  fetch_fundamentals ← yfinance: P/E, EPS, margins, debt-to-equity
       │
       ▼
   fetch_news        ← NewsAPI: headlines + sentiment scores
@@ -27,7 +27,7 @@ Pipeline:
   generate_report   ← Claude narrative + reportlab PDF
       │
       ▼
-  monitor           ← Evidently AI data quality + drift detection
+  monitor           ← data quality + drift detection
       │
       ▼
   track             ← MLflow: log params, metrics, artifacts
@@ -188,13 +188,13 @@ def route_after_price(state: AgentState) -> str:
 
 
 def node_no_price_data(state: AgentState) -> dict:
-    logger.warning("No price data for %s from Yahoo Finance or Alpha Vantage", state["ticker"])
+    logger.warning("No price data for %s from Yahoo Finance or Polygon", state["ticker"])
     return {
         "report_status": "error",
         "report_error": (
             f"Couldn't get price data for {state['ticker']}. Yahoo Finance returned "
-            "nothing and the Alpha Vantage fallback failed (its free tier allows "
-            "25 calls a day). Check the ticker or try again later."
+            "nothing and the Polygon fallback failed (check POLYGON_API_KEY; the "
+            "free tier allows 5 calls a minute). Check the ticker or try again later."
         ),
     }
 
