@@ -23,7 +23,7 @@ TAGS (metadata for filtering in the UI)
 
 ARTIFACTS (files attached to the run)
   PDF report
-  Evidently HTML monitoring report (if available)
+  HTML monitoring report (if available)
   Raw state JSON (all data in one file for reproducibility)
 ─────────────────────────────────────────────────────────────
 
@@ -98,7 +98,7 @@ def log_run(state: dict) -> Optional[str]:
                 "ticker": ticker,
                 "run_date": datetime.now().strftime("%Y-%m-%d"),
                 "llm_model": config.LLM_MODEL,
-                "data_sources": "yfinance,alpha_vantage,newsapi",
+                "data_sources": "yfinance,polygon,newsapi",
                 "rsi_period": config.RSI_PERIOD,
                 "bb_window": config.BB_WINDOW,
                 "anomaly_zscore_threshold": config.ANOMALY_ZSCORE_THRESHOLD,
@@ -208,11 +208,11 @@ def _log_artifacts(state: dict, run_id: str) -> None:
     else:
         logger.warning("No PDF report found to log as artifact")
 
-    # ── Evidently HTML monitoring report ──────────────────────────────────────
+    # ── HTML monitoring report ────────────────────────────────────────────────
     monitoring_report_path = state.get("monitoring_report_path")
     if monitoring_report_path and Path(monitoring_report_path).exists():
         mlflow.log_artifact(monitoring_report_path, artifact_path="monitoring")
-        logger.debug("Logged Evidently report: %s", monitoring_report_path)
+        logger.debug("Logged monitoring report: %s", monitoring_report_path)
 
     # ── Raw state JSON (full reproducibility) ─────────────────────────────────
     # Save a JSON snapshot of all data (excluding long lists) so you can

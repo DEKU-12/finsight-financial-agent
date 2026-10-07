@@ -6,13 +6,13 @@ The user-facing dashboard for the FinSight Autonomous Financial Research Agent.
 Tabs:
   1. Analysis  — Run the agent on any ticker and display results live
   2. Past Runs  — Browse all MLflow experiment runs as a filterable table
-  3. Monitoring — View the latest Evidently data quality / drift report
+  3. Monitoring — View the latest data quality / drift report
 
 How to run:
     streamlit run app.py
 
 Environment:
-    Requires a .env file with ANTHROPIC_API_KEY, ALPHA_VANTAGE_API_KEY, NEWS_API_KEY.
+    Requires a .env file with NEWS_API_KEY (POLYGON_API_KEY on cloud hosts).
     MLflow server must be running:  mlflow server --host 0.0.0.0 --port 5001
 """
 
@@ -134,8 +134,8 @@ with st.sidebar:
 
     st.divider()
     st.markdown("**Data Sources**")
-    st.markdown("- 📊 yfinance (price & technicals)")
-    st.markdown("- 📋 Alpha Vantage (fundamentals)")
+    st.markdown("- 📊 yfinance (prices, technicals & fundamentals)")
+    st.markdown("- 📋 Polygon (prices when Yahoo is unavailable)")
     st.markdown("- 📰 NewsAPI (headlines & sentiment)")
     st.markdown("- 🤖 Anthropic Claude (AI narrative)")
     st.divider()
@@ -322,7 +322,7 @@ with tab_analysis:
     narrative = result.get("llm_narrative","")
     if narrative:
         st.divider()
-        st.markdown('<div class="section-header">🤖 AI Research Narrative (Llama-3)</div>',
+        st.markdown('<div class="section-header">🤖 AI Research Narrative (Claude)</div>',
                     unsafe_allow_html=True)
         with st.expander("View full AI narrative", expanded=True):
             st.markdown(narrative)
@@ -463,12 +463,12 @@ if MLFLOW_AVAILABLE and tab_runs is not None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 3 — MONITORING (Evidently)
+# TAB 3 — MONITORING
 # ─────────────────────────────────────────────────────────────────────────────
 with tab_monitoring:
     st.markdown("## 🩺 Data Quality & Drift Monitoring")
     st.markdown(
-        "Each agent run generates an **Evidently AI** monitoring report "
+        "Each agent run generates a monitoring report "
         "that checks data quality and detects statistical drift vs. the reference dataset."
     )
 

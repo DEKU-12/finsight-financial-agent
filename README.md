@@ -15,13 +15,13 @@
 
 You type a stock ticker like `AAPL` or `NVDA`. FinSight runs an 8-node LangGraph pipeline that:
 
-1. **Fetches** live price history, moving averages, and volume from yfinance
-2. **Fetches** fundamentals (P/E, EPS, margins, debt/equity) from Alpha Vantage
+1. **Fetches** live price history, moving averages, and volume from yfinance (Polygon as fallback)
+2. **Fetches** fundamentals (P/E, EPS, margins, debt/equity) from yfinance
 3. **Fetches** the latest news headlines and scores sentiment
 4. **Analyzes** RSI, Bollinger Bands, momentum, and volatility
 5. **Detects** anomalies and assigns a risk level (Low → Critical)
-6. **Generates** an AI narrative report using Groq/Llama-3 and saves it as a PDF
-7. **Monitors** data quality and statistical drift using Evidently AI
+6. **Generates** an AI narrative report using Claude and saves it as a PDF
+7. **Monitors** data quality and statistical drift
 8. **Tracks** every run as a reproducible MLflow experiment
 
 All results are displayed in a live Streamlit dashboard with PDF download.
@@ -43,9 +43,9 @@ User Input (Ticker)
 │                            │                           │
 │                     detect_anomaly                     │
 │                            │                           │
-│                     generate_report  ← Groq/Llama-3   │
+│                     generate_report  ← Claude        │
 │                            │                           │
-│                        monitor  ← Evidently AI         │
+│                        monitor  ← quality & drift      │
 │                            │                           │
 │                         track   ← MLflow               │
 └───────────────────────────────────────────────────────┘
@@ -60,15 +60,15 @@ Streamlit Dashboard + PDF Report + MLflow Experiment
 
 | Layer | Technology |
 |-------|-----------|
-| **Agent Framework** | LangGraph + LangChain |
-| **LLM** | Groq API (Llama-3.3-70B) |
-| **Price Data** | yfinance |
-| **Fundamentals** | Alpha Vantage API |
+| **Agent Framework** | LangGraph |
+| **LLM** | Anthropic Claude (Opus 5.5) |
+| **Price Data** | yfinance, Polygon (fallback) |
+| **Fundamentals** | yfinance |
 | **News & Sentiment** | NewsAPI |
 | **Technical Analysis** | NumPy + Pandas (RSI, BB, Momentum) |
 | **PDF Generation** | ReportLab Platypus |
 | **Experiment Tracking** | MLflow |
-| **Data Monitoring** | Evidently AI |
+| **Data Monitoring** | Custom quality & drift checks (pandas) |
 | **Frontend** | Streamlit |
 | **CI/CD** | GitHub Actions |
 
@@ -78,7 +78,9 @@ Streamlit Dashboard + PDF Report + MLflow Experiment
 
 ### Prerequisites
 - Python 3.11+
-- API keys for [Groq](https://console.groq.com), [Alpha Vantage](https://www.alphavantage.co/support/#api-key), and [NewsAPI](https://newsapi.org)
+- A [NewsAPI](https://newsapi.org) key
+- An [Anthropic](https://console.anthropic.com) key (or enter one in the app's sidebar)
+- A [Polygon](https://polygon.io) key for cloud deploys, where Yahoo Finance is often blocked
 
 ### 1. Clone the repo
 ```bash
@@ -171,7 +173,7 @@ Open `http://localhost:5001` → click **Model Training** view.
 Each run logs:
 - **Parameters:** ticker, model, data sources, RSI period
 - **Metrics:** price, RSI, volatility, sentiment score, latency, token usage
-- **Artifacts:** PDF report, Evidently HTML report, state JSON snapshot
+- **Artifacts:** PDF report, monitoring HTML report, state JSON snapshot
 
 ---
 
@@ -181,17 +183,17 @@ Each run logs:
 finsight-financial-agent/
 ├── agent/
 │   ├── graph.py              # LangGraph pipeline (8 nodes)
-│   ├── prompts.py            # Llama-3 report prompt template
+│   ├── prompts.py            # Claude report prompt template
 │   └── nodes/
-│       ├── fetch_price.py    # yfinance data fetcher
-│       ├── fetch_fundamentals.py  # Alpha Vantage fetcher
+│       ├── fetch_price.py    # yfinance + Polygon fallback
+│       ├── fetch_fundamentals.py  # yfinance fundamentals
 │       ├── fetch_news.py     # NewsAPI + sentiment classifier
 │       ├── analyze.py        # RSI, Bollinger Bands, momentum
 │       ├── detect_anomaly.py # Anomaly flagging & risk scoring
-│       └── generate_report.py # Groq LLM + ReportLab PDF
+│       └── generate_report.py # Claude + ReportLab PDF
 ├── mlops/
 │   ├── tracker.py            # MLflow experiment logging
-│   └── monitor.py            # Evidently data quality & drift
+│   └── monitor.py            # Data quality & drift checks
 ├── tests/
 │   └── test_nodes.py         # Unit tests (pytest)
 ├── .github/workflows/

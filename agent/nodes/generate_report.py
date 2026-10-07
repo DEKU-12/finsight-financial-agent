@@ -366,7 +366,7 @@ def _build_pdf(
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#dee2e6")))
     story.append(Spacer(1, 0.1 * inch))
     footer_text = (
-        f"<b>Data Sources:</b> Yahoo Finance (yfinance), Alpha Vantage, NewsAPI &nbsp;|&nbsp; "
+        f"<b>Data Sources:</b> Yahoo Finance (yfinance), Polygon, NewsAPI &nbsp;|&nbsp; "
         f"<b>LLM:</b> Anthropic / {config.LLM_MODEL} &nbsp;|&nbsp; "
         f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M UTC')} &nbsp;|&nbsp; "
         f"<i>For educational purposes only. Not financial advice.</i>"

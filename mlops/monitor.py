@@ -1,5 +1,5 @@
 """
-mlops/monitor.py — Data Quality & Drift Monitor (Evidently AI)
+mlops/monitor.py — Data Quality & Drift Monitor
 
 Runs two types of checks on every agent run:
 
@@ -83,7 +83,7 @@ METRIC_RANGES = {
 
 def run_monitoring(state: dict) -> dict:
     """
-    Run Evidently AI data quality and drift checks on the current agent run.
+    Run data quality and drift checks on the current agent run.
 
     Args:
         state: The agent state dict (after generate_report has run).
@@ -96,7 +96,7 @@ def run_monitoring(state: dict) -> dict:
             drift_detected          bool  True if drift was found vs reference
     """
     ticker = state.get("ticker", "UNKNOWN")
-    logger.info("Running Evidently monitoring for %s", ticker)
+    logger.info("Running monitoring for %s", ticker)
 
     config.ensure_dirs()
 
