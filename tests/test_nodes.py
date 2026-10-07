@@ -3,7 +3,7 @@ tests/test_nodes.py — Unit Tests for FinSight Agent Nodes
 
 Tests every major node in the pipeline using:
   - Real yfinance data for fetch_price (AAPL — always available)
-  - Mocked API responses for Alpha Vantage and NewsAPI (no key needed)
+  - Mocked API responses for NewsAPI (no key needed)
   - Synthetic state dicts for analyze, detect_anomaly, generate_report
 
 Run:
