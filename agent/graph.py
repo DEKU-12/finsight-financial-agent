@@ -66,7 +66,7 @@ from agent.nodes.analyze import analyze
 from agent.nodes.detect_anomaly import detect_anomaly
 from agent.nodes.generate_report import generate_report
 from mlops.monitor import run_monitoring
-from mlops.tracker import log_run
+from mlops.tracker import log_run, mlflow_reachable
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +156,7 @@ class AgentState(TypedDict, total=False):
     llm_tokens_used: int
     llm_latency_seconds: float
     report_status: str
+    report_error: str
 
     # Timing
     agent_latency_seconds: float
@@ -234,6 +235,10 @@ def node_monitor(state: AgentState) -> dict:
 
 def node_track(state: AgentState) -> dict:
     logger.info("[Node 8/8] track → %s", state["ticker"])
+    # Without this check MLflow's client retries for ~4 minutes before failing
+    if not mlflow_reachable():
+        logger.warning("MLflow tracking skipped: server unreachable")
+        return {"mlflow_run_id": ""}
     try:
         run_id = log_run(dict(state))
         return {"mlflow_run_id": run_id or ""}

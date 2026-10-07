@@ -147,20 +147,9 @@ with st.sidebar:
 # TABS
 # Check if MLflow server is actually reachable before showing Past Runs tab
 # ═══════════════════════════════════════════════════════════════════════════════
-def _mlflow_reachable() -> bool:
-    """Return True if MLflow server responds within 2 seconds."""
-    import socket
-    try:
-        uri = config.MLFLOW_TRACKING_URI  # e.g. http://localhost:5001
-        host = uri.split("//")[-1].split(":")[0]
-        port = int(uri.split(":")[-1])
-        sock = socket.create_connection((host, port), timeout=2)
-        sock.close()
-        return True
-    except Exception:
-        return False
+from mlops.tracker import mlflow_reachable
 
-MLFLOW_AVAILABLE = _mlflow_reachable()
+MLFLOW_AVAILABLE = mlflow_reachable()
 
 if MLFLOW_AVAILABLE:
     tab_analysis, tab_runs, tab_monitoring = st.tabs([

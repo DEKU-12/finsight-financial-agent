@@ -46,6 +46,19 @@ from config import config
 
 logger = logging.getLogger(__name__)
 
+def mlflow_reachable() -> bool:
+    """Return True if the MLflow server accepts a connection within 2 seconds."""
+    import socket
+    try:
+        uri = config.MLFLOW_TRACKING_URI  # e.g. http://localhost:5001
+        host = uri.split("//")[-1].split(":")[0]
+        port = int(uri.split(":")[-1])
+        socket.create_connection((host, port), timeout=2).close()
+        return True
+    except Exception:
+        return False
+
+
 # Map risk level strings to numeric scores for MLflow metric tracking
 RISK_LEVEL_SCORE = {
     "low": 0,
