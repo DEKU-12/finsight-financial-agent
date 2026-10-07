@@ -23,12 +23,28 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import requests
 import yfinance as yf
+
+from config import config
 
 logger = logging.getLogger(__name__)
 
 
 def fetch_price_data(ticker: str) -> dict:
+    """
+    Fetch price data from yfinance, falling back to Alpha Vantage when Yahoo
+    returns nothing (Yahoo often blocks cloud hosts like Streamlit Cloud/Render).
+    """
+    result = _fetch_yfinance(ticker)
+    if result["status"] != "success":
+        fallback = _fetch_alpha_vantage(result["ticker"])
+        if fallback:
+            return fallback
+    return result
+
+
+def _fetch_yfinance(ticker: str) -> dict:
     """
     Fetch comprehensive price data for a stock ticker using yfinance.
 
@@ -166,6 +182,71 @@ def fetch_price_data(ticker: str) -> dict:
             "status": "error",
             "error": str(exc),
         }
+
+
+# ── Alpha Vantage fallback ─────────────────────────────────────────────────────
+
+def _fetch_alpha_vantage(ticker: str) -> Optional[dict]:
+    """
+    Daily prices from Alpha Vantage's free tier (last 100 trading days, one call).
+    Enough for RSI, Bollinger Bands, momentum, volatility and MA30; MA200 and the
+    52-week range need more history and stay None. Returns None on failure.
+    """
+    try:
+        data = requests.get(
+            "https://www.alphavantage.co/query",
+            params={
+                "function": "TIME_SERIES_DAILY",
+                "symbol": ticker,
+                "outputsize": "compact",
+                "apikey": config.ALPHA_VANTAGE_API_KEY,
+            },
+            timeout=15,
+        ).json()
+    except Exception as exc:
+        logger.warning("Alpha Vantage price fallback failed for %s: %s", ticker, exc)
+        return None
+
+    series = data.get("Time Series (Daily)")
+    if not series:
+        logger.warning(
+            "Alpha Vantage returned no prices for %s: %s",
+            ticker, data.get("Information") or data.get("Note") or data.get("Error Message"),
+        )
+        return None
+
+    hist = pd.DataFrame(
+        {
+            "Close": [float(v["4. close"]) for v in series.values()],
+            "Volume": [int(v["5. volume"]) for v in series.values()],
+        },
+        index=pd.to_datetime(list(series.keys())),
+    ).sort_index()
+
+    ma_30 = _last_valid(hist["Close"].rolling(window=30).mean())
+    returns = hist["Close"].pct_change().dropna()
+    closes = hist["Close"].iloc[1:]
+
+    logger.info("Using Alpha Vantage prices for %s (%d days)", ticker, len(hist))
+    return {
+        "ticker": ticker,
+        "company_name": ticker,
+        "sector": "Unknown",
+        "industry": "Unknown",
+        "currency": "USD",
+        "market_cap": None,
+        "current_price": _round(hist["Close"].iloc[-1]),
+        "week_52_high": None,
+        "week_52_low": None,
+        "avg_volume": int(hist["Volume"].tail(63).mean()),
+        "current_volume": int(hist["Volume"].iloc[-1]),
+        "ma_30": _round(ma_30),
+        "ma_200": None,
+        "daily_returns": [round(r, 6) for r in returns.tolist()],
+        "close_prices": [round(p, 4) for p in closes.tolist()],
+        "dates": [str(d.date()) for d in closes.index],
+        "status": "success",
+    }
 
 
 # ── Private helpers ──────────────────────────────────────────────────────────

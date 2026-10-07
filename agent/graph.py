@@ -182,6 +182,23 @@ def node_fetch_price(state: AgentState) -> dict:
     return result
 
 
+def route_after_price(state: AgentState) -> str:
+    # Without prices the report would be empty, so stop before calling Claude.
+    return "continue" if state.get("close_prices") else "no_price_data"
+
+
+def node_no_price_data(state: AgentState) -> dict:
+    logger.warning("No price data for %s from Yahoo Finance or Alpha Vantage", state["ticker"])
+    return {
+        "report_status": "error",
+        "report_error": (
+            f"Couldn't get price data for {state['ticker']}. Yahoo Finance returned "
+            "nothing and the Alpha Vantage fallback failed (its free tier allows "
+            "25 calls a day). Check the ticker or try again later."
+        ),
+    }
+
+
 def node_fetch_fundamentals(state: AgentState) -> dict:
     logger.info("[Node 2/8] fetch_fundamentals → %s", state["ticker"])
     result = fetch_fundamentals(state["ticker"])
@@ -270,7 +287,13 @@ def _build_graph() -> StateGraph:
 
     # Define edges (linear pipeline)
     graph.add_edge(START, "fetch_price")
-    graph.add_edge("fetch_price", "fetch_fundamentals")
+    graph.add_node("no_price_data", node_no_price_data)
+    graph.add_conditional_edges(
+        "fetch_price",
+        route_after_price,
+        {"continue": "fetch_fundamentals", "no_price_data": "no_price_data"},
+    )
+    graph.add_edge("no_price_data", END)
     graph.add_edge("fetch_fundamentals", "fetch_news")
     graph.add_edge("fetch_news", "analyze")
     graph.add_edge("analyze", "detect_anomaly")
