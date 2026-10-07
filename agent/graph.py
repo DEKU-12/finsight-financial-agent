@@ -56,6 +56,7 @@ import logging
 import time
 from typing import TypedDict, Optional, Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 
 from agent.nodes.fetch_price import fetch_price_data
@@ -208,9 +209,12 @@ def node_detect_anomaly(state: AgentState) -> dict:
     return result
 
 
-def node_generate_report(state: AgentState) -> dict:
+def node_generate_report(state: AgentState, config: RunnableConfig) -> dict:
     logger.info("[Node 6/8] generate_report → %s", state["ticker"])
-    result = generate_report(dict(state))
+    # The user's key travels in the run config, not the state, so it never
+    # reaches the state snapshot logged to MLflow.
+    api_key = config.get("configurable", {}).get("anthropic_api_key")
+    result = generate_report(dict(state), api_key=api_key)
     # Compute total agent latency
     start = state.get("run_start_time", time.time())
     result["agent_latency_seconds"] = round(time.time() - start, 2)
@@ -279,7 +283,11 @@ _agent = _build_graph()
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def run_agent(ticker: str, company_name: Optional[str] = None) -> dict:
+def run_agent(
+    ticker: str,
+    company_name: Optional[str] = None,
+    anthropic_api_key: Optional[str] = None,
+) -> dict:
     """
     Run the full FinSight agent pipeline for a given ticker.
 
@@ -288,6 +296,8 @@ def run_agent(ticker: str, company_name: Optional[str] = None) -> dict:
         company_name: Optional human-readable company name, e.g. "Apple".
                       Used to improve news search quality.
                       If omitted, yfinance's company name is used.
+        anthropic_api_key: The user's own Anthropic key. Falls back to
+                      ANTHROPIC_API_KEY from the environment.
 
     Returns:
         The final state dict with all fields from all 6 nodes,
@@ -312,7 +322,10 @@ def run_agent(ticker: str, company_name: Optional[str] = None) -> dict:
     }
 
     try:
-        final_state = _agent.invoke(initial_state)
+        final_state = _agent.invoke(
+            initial_state,
+            config={"configurable": {"anthropic_api_key": anthropic_api_key}},
+        )
         logger.info(
             "Agent run complete for %s | status=%s | latency=%.2fs",
             ticker,

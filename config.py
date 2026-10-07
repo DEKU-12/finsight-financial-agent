@@ -88,7 +88,7 @@ class Config:
     # Helpers
     # ------------------------------------------------------------------
 
-    def validate(self) -> bool:
+    def validate(self, anthropic_api_key: str = "") -> bool:
         """
         Check that all required API keys are present.
 
@@ -103,8 +103,8 @@ class Config:
         """
         missing: list[str] = []
 
-        if not self.ANTHROPIC_API_KEY:
-            missing.append("ANTHROPIC_API_KEY")
+        if not (anthropic_api_key or self.ANTHROPIC_API_KEY):
+            missing.append("ANTHROPIC_API_KEY (enter your own key in the sidebar)")
         if not self.ALPHA_VANTAGE_API_KEY:
             missing.append("ALPHA_VANTAGE_API_KEY")
         if not self.NEWS_API_KEY:

@@ -120,6 +120,16 @@ with st.sidebar:
         help="Improves news search quality. Leave blank to auto-detect.",
     ).strip()
 
+    api_key_input = st.text_input(
+        "Anthropic API key",
+        type="password",
+        placeholder="sk-ant-...",
+        help="Bring your own key from console.anthropic.com. "
+             "It's used only for your session and is never saved.",
+    ).strip()
+    if not api_key_input and not config.ANTHROPIC_API_KEY:
+        st.caption("🔑 Bring your own Anthropic API key to run an analysis.")
+
     run_button = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
 
     st.divider()
@@ -196,14 +206,14 @@ with tab_analysis:
 
         # Validate API keys before running
         try:
-            config.validate()
+            config.validate(api_key_input)
         except ValueError as e:
             st.error(f"**Configuration Error:** {e}")
             st.stop()
 
         with st.spinner(f"🔄 Running FinSight agent for **{ticker_input}**… this takes ~30 seconds"):
             from agent.graph import run_agent
-            result = run_agent(ticker_input, company_input or None)
+            result = run_agent(ticker_input, company_input or None, api_key_input or None)
             st.session_state["last_result"] = result
 
     # ── Display results ───────────────────────────────────────────────────────

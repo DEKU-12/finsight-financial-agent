@@ -49,7 +49,7 @@ from agent.prompts import build_report_prompt
 logger = logging.getLogger(__name__)
 
 
-def generate_report(state: dict) -> dict:
+def generate_report(state: dict, api_key: Optional[str] = None) -> dict:
     """
     Generate the LLM narrative and compile the final PDF report.
 
@@ -72,7 +72,7 @@ def generate_report(state: dict) -> dict:
     # ── Step 1: Call Claude ─────────────────────────────────────────────────
     try:
         prompt = build_report_prompt(state)
-        narrative, tokens_used, llm_latency = _call_llm(prompt)
+        narrative, tokens_used, llm_latency = _call_llm(prompt, api_key)
     except Exception as exc:
         logger.error("LLM call failed for %s: %s", ticker, exc)
         return {
@@ -125,11 +125,11 @@ def generate_report(state: dict) -> dict:
 
 # ── LLM call ──────────────────────────────────────────────────────────────────
 
-def _call_llm(prompt: str) -> tuple[str, int, float]:
+def _call_llm(prompt: str, api_key: Optional[str] = None) -> tuple[str, int, float]:
     """
     Send the prompt to Claude and return (response_text, total_tokens, latency_seconds).
     """
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    client = anthropic.Anthropic(api_key=api_key or config.ANTHROPIC_API_KEY)
 
     start = time.time()
     response = client.beta.messages.create(
