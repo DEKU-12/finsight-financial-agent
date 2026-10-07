@@ -1,7 +1,7 @@
 """
 agent/prompts.py — LLM Prompt Templates for FinSight
 
-This module contains the prompt templates sent to Groq/Llama3.
+This module contains the prompt templates sent to Claude.
 The LLM is used ONLY in generate_report.py to write the final
 narrative section of the report — all analysis is done in Python.
 
@@ -103,7 +103,7 @@ def build_report_prompt(state: dict) -> str:
         state: The fully populated state dict after all 5 pipeline nodes have run.
 
     Returns:
-        A formatted string ready to be sent to Groq as the user message.
+        A formatted string ready to be sent to Claude as the user message.
     """
     def fmt(value, prefix="", suffix="", decimals=2, default="N/A"):
         """Format a value safely, returning default if None."""

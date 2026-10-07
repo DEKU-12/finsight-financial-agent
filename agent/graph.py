@@ -24,7 +24,7 @@ Pipeline:
   detect_anomaly    ← flag unusual patterns and risk signals
       │
       ▼
-  generate_report   ← Groq/Llama3 narrative + reportlab PDF
+  generate_report   ← Claude narrative + reportlab PDF
       │
       ▼
   monitor           ← Evidently AI data quality + drift detection

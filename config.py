@@ -22,7 +22,7 @@ class Config:
     # ------------------------------------------------------------------
     # API Keys
     # ------------------------------------------------------------------
-    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     ALPHA_VANTAGE_API_KEY: str = os.getenv("ALPHA_VANTAGE_API_KEY", "")
     NEWS_API_KEY: str = os.getenv("NEWS_API_KEY", "")
 
@@ -49,15 +49,12 @@ class Config:
     # ------------------------------------------------------------------
     # LLM Settings
     # ------------------------------------------------------------------
-    # The Groq model used to write the final narrative report.
-    # Alternatives: "mixtral-8x7b-32768", "gemma2-9b-it"
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+    # The Claude model used to write the final narrative report.
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "claude-opus-5-5")
 
-    # Maximum tokens to request from Groq for the report narrative
-    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "1024"))
+    # Max output tokens for the report (includes Claude's thinking tokens)
+    LLM_MAX_TOKENS: int = int(os.getenv("LLM_MAX_TOKENS", "16000"))
 
-    # Temperature for LLM generation (0 = deterministic, 1 = creative)
-    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.3"))
 
     # ------------------------------------------------------------------
     # Logging
@@ -106,8 +103,8 @@ class Config:
         """
         missing: list[str] = []
 
-        if not self.GROQ_API_KEY:
-            missing.append("GROQ_API_KEY")
+        if not self.ANTHROPIC_API_KEY:
+            missing.append("ANTHROPIC_API_KEY")
         if not self.ALPHA_VANTAGE_API_KEY:
             missing.append("ALPHA_VANTAGE_API_KEY")
         if not self.NEWS_API_KEY:

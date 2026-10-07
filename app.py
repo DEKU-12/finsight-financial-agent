@@ -12,7 +12,7 @@ How to run:
     streamlit run app.py
 
 Environment:
-    Requires a .env file with GROQ_API_KEY, ALPHA_VANTAGE_API_KEY, NEWS_API_KEY.
+    Requires a .env file with ANTHROPIC_API_KEY, ALPHA_VANTAGE_API_KEY, NEWS_API_KEY.
     MLflow server must be running:  mlflow server --host 0.0.0.0 --port 5001
 """
 
@@ -127,7 +127,7 @@ with st.sidebar:
     st.markdown("- 📊 yfinance (price & technicals)")
     st.markdown("- 📋 Alpha Vantage (fundamentals)")
     st.markdown("- 📰 NewsAPI (headlines & sentiment)")
-    st.markdown("- 🤖 Groq / Llama-3 (AI narrative)")
+    st.markdown("- 🤖 Anthropic Claude (AI narrative)")
     st.divider()
     st.caption(f"Model: `{config.LLM_MODEL}`")
     st.caption(f"MLflow: `{config.MLFLOW_TRACKING_URI}`")
@@ -185,7 +185,7 @@ with tab_analysis:
         with c2:
             st.info("**🧮 Analyze**\nRSI, Bollinger Bands, momentum, volatility, anomaly detection")
         with c3:
-            st.info("**📄 Generate Report**\nGroq/Llama-3 AI narrative + downloadable PDF")
+            st.info("**📄 Generate Report**\nClaude AI narrative + downloadable PDF")
         st.stop()
 
     # ── Run the agent ─────────────────────────────────────────────────────────
@@ -212,7 +212,7 @@ with tab_analysis:
         st.stop()
 
     if result.get("report_status") == "error":
-        st.error(f"Agent error: {result.get('error', 'Unknown error')}")
+        st.error(f"Agent error: {result.get('error') or result.get('report_error', 'Unknown error')}")
         st.stop()
 
     ticker     = result.get("ticker", "")

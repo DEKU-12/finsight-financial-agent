@@ -3,7 +3,7 @@ agent/nodes/generate_report.py — LLM Report Generator + PDF Builder
 
 This is the final node in the agent pipeline. It:
 
-  1. Calls Groq (Llama3) with the full analysis data via the prompt
+  1. Calls Claude with the full analysis data via the prompt
      template from agent/prompts.py to generate a written narrative.
 
   2. Parses the LLM response into four sections:
@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from groq import Groq
+import anthropic
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 from reportlab.lib.pagesizes import letter
@@ -60,19 +60,19 @@ def generate_report(state: dict) -> dict:
         state augmented with:
             report_path         str   Absolute path to the saved PDF
             report_filename     str   Just the filename, e.g. "AAPL_2026-04-25.pdf"
-            llm_narrative       str   Raw text returned by Groq
+            llm_narrative       str   Raw text returned by Claude
             llm_tokens_used     int   Total tokens consumed (prompt + completion)
-            llm_latency_seconds float Time taken for the Groq call
+            llm_latency_seconds float Time taken for the Claude call
             report_status       str   "success" | "error"
     """
     ticker = state.get("ticker", "UNKNOWN")
     company = state.get("company_name", ticker)
     logger.info("Generating report for %s", ticker)
 
-    # ── Step 1: Call Groq LLM ─────────────────────────────────────────────────
+    # ── Step 1: Call Claude ─────────────────────────────────────────────────
     try:
         prompt = build_report_prompt(state)
-        narrative, tokens_used, llm_latency = _call_groq(prompt)
+        narrative, tokens_used, llm_latency = _call_llm(prompt)
     except Exception as exc:
         logger.error("LLM call failed for %s: %s", ticker, exc)
         return {
@@ -125,35 +125,35 @@ def generate_report(state: dict) -> dict:
 
 # ── LLM call ──────────────────────────────────────────────────────────────────
 
-def _call_groq(prompt: str) -> tuple[str, int, float]:
+def _call_llm(prompt: str) -> tuple[str, int, float]:
     """
-    Send the prompt to Groq and return (response_text, total_tokens, latency_seconds).
+    Send the prompt to Claude and return (response_text, total_tokens, latency_seconds).
     """
-    client = Groq(api_key=config.GROQ_API_KEY)
+    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
 
     start = time.time()
-    response = client.chat.completions.create(
+    response = client.beta.messages.create(
         model=config.LLM_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a senior financial analyst. Write clear, factual, "
-                    "structured financial research reports based strictly on the "
-                    "data provided. Never fabricate numbers or make up statistics."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
-        temperature=config.LLM_TEMPERATURE,
         max_tokens=config.LLM_MAX_TOKENS,
+        system=(
+            "You are a senior financial analyst. Write clear, factual, "
+            "structured financial research reports based strictly on the "
+            "data provided. Never fabricate numbers or make up statistics."
+        ),
+        messages=[{"role": "user", "content": prompt}],
+        output_config={"effort": "medium"},
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
     )
     latency = time.time() - start
 
-    text = response.choices[0].message.content or ""
-    tokens = response.usage.total_tokens if response.usage else 0
+    if response.stop_reason == "refusal":
+        raise RuntimeError("Claude declined to write this report")
 
-    logger.info("Groq call complete: %d tokens, %.2fs", tokens, latency)
+    text = "".join(b.text for b in response.content if b.type == "text")
+    tokens = response.usage.input_tokens + response.usage.output_tokens
+
+    logger.info("Claude call complete: %d tokens, %.2fs", tokens, latency)
     return text, tokens, latency
 
 
@@ -367,7 +367,7 @@ def _build_pdf(
     story.append(Spacer(1, 0.1 * inch))
     footer_text = (
         f"<b>Data Sources:</b> Yahoo Finance (yfinance), Alpha Vantage, NewsAPI &nbsp;|&nbsp; "
-        f"<b>LLM:</b> Groq / {config.LLM_MODEL} &nbsp;|&nbsp; "
+        f"<b>LLM:</b> Anthropic / {config.LLM_MODEL} &nbsp;|&nbsp; "
         f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M UTC')} &nbsp;|&nbsp; "
         f"<i>For educational purposes only. Not financial advice.</i>"
     )
