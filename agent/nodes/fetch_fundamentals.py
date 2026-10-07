@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+import yfinance as yf
 
 from config import config
 
@@ -39,6 +40,19 @@ ALPHA_VANTAGE_BASE_URL = "https://www.alphavantage.co/query"
 
 
 def fetch_fundamentals(ticker: str) -> dict:
+    """
+    Fetch fundamentals from Alpha Vantage, falling back to yfinance when
+    Alpha Vantage returns nothing usable (rate limit, premium-only, no data).
+    """
+    result = _fetch_alpha_vantage(ticker)
+    if result["status"] != "success":
+        fallback = _fetch_yfinance(result["ticker"])
+        if fallback:
+            return fallback
+    return result
+
+
+def _fetch_alpha_vantage(ticker: str) -> dict:
     """
     Fetch fundamental financial data for a stock ticker from Alpha Vantage.
 
@@ -85,9 +99,9 @@ def fetch_fundamentals(ticker: str) -> dict:
 
     # ── Parse API response ────────────────────────────────────────────────────
 
-    # Rate limit hit: Alpha Vantage returns a "Note" key
-    if "Note" in data:
-        logger.warning("Alpha Vantage rate limit hit for %s", ticker)
+    # Rate limit or premium-only: Alpha Vantage returns a "Note" or "Information" key
+    if "Note" in data or "Information" in data:
+        logger.warning("Alpha Vantage refused %s: %s", ticker, data.get("Note") or data.get("Information"))
         return {
             "ticker": ticker,
             "status": "rate_limited",
@@ -176,6 +190,65 @@ def fetch_fundamentals(ticker: str) -> dict:
     _write_cache(ticker, result)
 
     return result
+
+
+# ── yfinance fallback ─────────────────────────────────────────────────────────
+
+def _fetch_yfinance(ticker: str) -> Optional[dict]:
+    """Same fields as the Alpha Vantage result, from yfinance. None on failure."""
+    try:
+        info = yf.Ticker(ticker).info
+    except Exception as exc:
+        logger.warning("yfinance fundamentals failed for %s: %s", ticker, exc)
+        return None
+    if not info or info.get("trailingPE") is None and info.get("marketCap") is None:
+        return None
+
+    def pct_to_ratio(value):
+        # yfinance reports these two as percentages (16.97 = 0.1697)
+        value = _float(value)
+        return value / 100 if value is not None else None
+
+    logger.info("Using yfinance fundamentals for %s", ticker)
+    return {
+        "ticker": ticker,
+        "company_name": info.get("longName") or info.get("shortName") or ticker,
+        "sector": info.get("sector", "Unknown"),
+        "industry": info.get("industry", "Unknown"),
+        "description": info.get("longBusinessSummary", ""),
+        "exchange": info.get("exchange", "Unknown"),
+        "currency": info.get("currency", "USD"),
+        "country": info.get("country", "Unknown"),
+        "pe_ratio": _float(info.get("trailingPE")),
+        "forward_pe": _float(info.get("forwardPE")),
+        "price_to_book": _float(info.get("priceToBook")),
+        "ev_to_ebitda": _float(info.get("enterpriseToEbitda")),
+        "price_to_sales_ttm": _float(info.get("priceToSalesTrailing12Months")),
+        "eps": _float(info.get("trailingEps")),
+        "diluted_eps_ttm": _float(info.get("trailingEps")),
+        "profit_margin": _float(info.get("profitMargins")),
+        "operating_margin": _float(info.get("operatingMargins")),
+        "return_on_equity": _float(info.get("returnOnEquity")),
+        "return_on_assets": _float(info.get("returnOnAssets")),
+        "revenue_ttm": _float(info.get("totalRevenue")),
+        "revenue_per_share": _float(info.get("revenuePerShare")),
+        "quarterly_revenue_growth": _float(info.get("revenueGrowth")),
+        "quarterly_earnings_growth": _float(info.get("earningsQuarterlyGrowth")),
+        "debt_to_equity": pct_to_ratio(info.get("debtToEquity")),
+        "book_value": _float(info.get("bookValue")),
+        "current_ratio": _float(info.get("currentRatio")),
+        "quick_ratio": _float(info.get("quickRatio")),
+        "beta": _float(info.get("beta")),
+        "market_cap": _float(info.get("marketCap")),
+        "dividend_yield": pct_to_ratio(info.get("dividendYield")),
+        "dividend_per_share": _float(info.get("dividendRate")),
+        "week_52_high": _float(info.get("fiftyTwoWeekHigh")),
+        "week_52_low": _float(info.get("fiftyTwoWeekLow")),
+        "analyst_target_price": _float(info.get("targetMeanPrice")),
+        "status": "success",
+        "from_cache": False,
+        "source": "yfinance",
+    }
 
 
 # ── Cache helpers ─────────────────────────────────────────────────────────────
