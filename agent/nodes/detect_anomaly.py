@@ -287,7 +287,7 @@ def _check_volume_spike(state: dict, flags: list) -> None:
 
 
 def _check_fundamentals(state: dict, flags: list) -> None:
-    """Flag fundamental warning signs from Alpha Vantage data."""
+    """Flag fundamental warning signs from the fundamentals data."""
     eps = state.get("eps")
     pe = state.get("pe_ratio")
     debt_to_equity = state.get("debt_to_equity")

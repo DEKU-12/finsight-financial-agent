@@ -57,8 +57,6 @@ mlruns/
 mlartifacts/
 mlflow.db
 
-# === Alpha Vantage cache ===
-data/av_cache.json
 
 # === Data & Reports (generated at runtime) ===
 data/reports/*.pdf
