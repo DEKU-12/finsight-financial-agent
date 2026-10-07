@@ -53,12 +53,12 @@ jobs:
       - name: Create .env file
         run: |
           cat > .env << EOF
-          GROQ_API_KEY=${{ secrets.GROQ_API_KEY || 'dummy_key_for_ci' }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY || 'dummy_key_for_ci' }}
           ALPHA_VANTAGE_API_KEY=${{ secrets.ALPHA_VANTAGE_API_KEY || 'dummy_key_for_ci' }}
           NEWS_API_KEY=${{ secrets.NEWS_API_KEY || 'dummy_key_for_ci' }}
           MLFLOW_TRACKING_URI=http://localhost:5001
           MLFLOW_EXPERIMENT_NAME=finsight-ci
-          LLM_MODEL=llama-3.3-70b-versatile
+          LLM_MODEL=claude-opus-5-5
           LOG_LEVEL=WARNING
           EOF
 
