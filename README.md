@@ -4,6 +4,12 @@
 
 ### Autonomous Financial Research Agent
 
+
+## Try it
+
+**Live app:** https://finsight-2npl.onrender.com
+
+
 **Type a stock ticker. Get technicals, fundamentals, news sentiment, automatic risk flags and a Claude-written research report as a PDF in about 20 seconds.**
 
 [![CI](https://github.com/DEKU-12/finsight-financial-agent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DEKU-12/finsight-financial-agent/actions/workflows/ci.yml)
@@ -17,6 +23,14 @@
 <img src="docs/screenshots/analysis.jpg" alt="FinSight analysis of Coinbase (COIN) showing a CRITICAL risk rating, price, technical and fundamental metrics" width="900">
 
 </div>
+
+## Demo video
+
+
+
+https://github.com/user-attachments/assets/aa0be0fd-8061-43d0-a6c7-9a860213dab9
+
+
 
 ---
 
@@ -372,22 +386,7 @@ pip install ta
 python scripts/measure_accuracy.py
 ```
 
-### Sentiment classifier
 
-Three classifiers were compared on 89 real financial headlines from 20 stocks:
-
-| Version | Classifier | Compared with | Agreement | Finding |
-|---|---|---|---|---|
-| v1 | Keyword matching | VADER | 58.4% | Positivity bias; missed negation and context |
-| v2 | VADER | FinBERT | 38.6% | Domain mismatch: VADER labels 65% of financial headlines positive, FinBERT 19% |
-| **v3** | **FinBERT** | — | — | Current classifier, fine-tuned on financial text |
-
-Words like *earnings*, *buying* and *bull* are positive in everyday text but often neutral in financial news, which is why FinBERT is the default.
-
-```bash
-pip install transformers torch vaderSentiment
-python scripts/measure_sentiment_accuracy.py
-```
 
 ---
 
